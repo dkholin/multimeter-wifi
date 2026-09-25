@@ -1,0 +1,27 @@
+{
+  "type": "summary",
+  "valid": 145,
+  "invalid_records": 0,
+  "unique_raw_states": 1,
+  "frame_us": {
+    "min": 16324,
+    "median": 16373,
+    "max": 16429
+  },
+  "phase_us": {
+    "min": 1994,
+    "median": 2052.0,
+    "max": 2108
+  },
+  "scan_us": {
+    "min": 1450,
+    "median": 1494.0,
+    "max": 1514
+  },
+  "post_scan_guard_us": {
+    "min": 256,
+    "median": 306.0,
+    "max": 363
+  },
+  "raw_file": "not-included: prior controlled capture"
+}
