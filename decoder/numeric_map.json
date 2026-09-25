@@ -1,0 +1,110 @@
+{
+  "status": "validated_positive_numeric_decoder_with_documented_ambiguities",
+  "lit_bit": "0",
+  "segments": {
+    "0.a": [40,43],
+    "0.b": [41],
+    "0.c": [42],
+    "0.d": [40,43],
+    "0.e": [46],
+    "0.f": [44],
+    "0.g": [45],
+    "1.a": [32],
+    "1.b": [33],
+    "1.c": [34],
+    "1.d": [35],
+    "1.e": [38],
+    "1.f": [36],
+    "1.g": [37],
+    "2.a": [20],
+    "2.b": [21],
+    "2.c": [22],
+    "2.d": [23],
+    "2.e": [30],
+    "2.f": [28],
+    "2.g": [29],
+    "3.a": [16],
+    "3.b": [17],
+    "3.c": [18],
+    "3.d": [19],
+    "3.e": [26],
+    "3.f": [24],
+    "3.g": [25]
+  },
+  "decimal_after_zero_based_position": {
+    "0": [39],
+    "1": [31],
+    "2": [27]
+  },
+  "construction_labels": [
+    "baseline_000p0","train_3p004_repeat","train_1p256","train_2p756","train_1p897",
+    "train_1p436_fresh","train_1p686","train_3p007_hold","train_1p126_hold","train_0p945_hold",
+    "train_576p7_hold","train_0p776_hold","train_1p016_hold","train_0p762_hold",
+    "train_275p4_repowered","train_276p1_range_hold","train_0p276_range_hold",
+    "train_00p27_range_hold","train_000p2_range_hold"
+  ],
+  "field_exclusions": {
+    "segments": ["train_3p004_repeat"],
+    "decimal": ["train_0p762_hold"]
+  },
+  "unresolved": [
+    "Leading digit a/d cells are interchangeable in construction data; decoder uses both possible assignments and requires identical resulting digit.",
+    "Earlier 3.004 digit label conflicts with other evidence; not relabeled.",
+    "Earlier 0.762 decimal label conflicts with other evidence; not relabeled.",
+    "Minus and OL untested."
+  ],
+  "minus": null,
+  "overload": null,
+  "index_convention": "bit index = 4*SEG + COM; positions 0-3 left to right; segment a top, b upper-right, c lower-right, d bottom, e lower-left, f upper-left, g middle",
+  "confirmed_segments": {
+    "0.b": {"index":41,"cell":"SEG10xCOM1","lit_bit":"0","unlit_bit":"1"},
+    "0.c": {"index":42,"cell":"SEG10xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "0.e": {"index":46,"cell":"SEG11xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "0.f": {"index":44,"cell":"SEG11xCOM0","lit_bit":"0","unlit_bit":"1"},
+    "0.g": {"index":45,"cell":"SEG11xCOM1","lit_bit":"0","unlit_bit":"1"},
+    "1.a": {"index":32,"cell":"SEG8xCOM0","lit_bit":"0","unlit_bit":"1"},
+    "1.b": {"index":33,"cell":"SEG8xCOM1","lit_bit":"0","unlit_bit":"1"},
+    "1.c": {"index":34,"cell":"SEG8xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "1.d": {"index":35,"cell":"SEG8xCOM3","lit_bit":"0","unlit_bit":"1"},
+    "1.e": {"index":38,"cell":"SEG9xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "1.f": {"index":36,"cell":"SEG9xCOM0","lit_bit":"0","unlit_bit":"1"},
+    "1.g": {"index":37,"cell":"SEG9xCOM1","lit_bit":"0","unlit_bit":"1"},
+    "2.a": {"index":20,"cell":"SEG5xCOM0","lit_bit":"0","unlit_bit":"1"},
+    "2.b": {"index":21,"cell":"SEG5xCOM1","lit_bit":"0","unlit_bit":"1"},
+    "2.c": {"index":22,"cell":"SEG5xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "2.d": {"index":23,"cell":"SEG5xCOM3","lit_bit":"0","unlit_bit":"1"},
+    "2.e": {"index":30,"cell":"SEG7xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "2.f": {"index":28,"cell":"SEG7xCOM0","lit_bit":"0","unlit_bit":"1"},
+    "2.g": {"index":29,"cell":"SEG7xCOM1","lit_bit":"0","unlit_bit":"1"},
+    "3.a": {"index":16,"cell":"SEG4xCOM0","lit_bit":"0","unlit_bit":"1"},
+    "3.b": {"index":17,"cell":"SEG4xCOM1","lit_bit":"0","unlit_bit":"1"},
+    "3.c": {"index":18,"cell":"SEG4xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "3.d": {"index":19,"cell":"SEG4xCOM3","lit_bit":"0","unlit_bit":"1"},
+    "3.e": {"index":26,"cell":"SEG6xCOM2","lit_bit":"0","unlit_bit":"1"},
+    "3.f": {"index":24,"cell":"SEG6xCOM0","lit_bit":"0","unlit_bit":"1"},
+    "3.g": {"index":25,"cell":"SEG6xCOM1","lit_bit":"0","unlit_bit":"1"}
+  },
+  "confirmed_decimal_points": {
+    "0": {"index":39,"cell":"SEG9xCOM3","lit_bit":"0","unlit_bit":"1"},
+    "1": {"index":31,"cell":"SEG7xCOM3","lit_bit":"0","unlit_bit":"1"},
+    "2": {"index":27,"cell":"SEG6xCOM3","lit_bit":"0","unlit_bit":"1"}
+  },
+  "validation": {
+    "file": "validation.json",
+    "frozen_map": "frozen_validation_map.json",
+    "frozen_sha256": "a445eabd69cf7d11f0b7ce3feae41f55b5062037de0a57105181e2a39e7f292f",
+    "passed_cases": 3,
+    "scope": "Positive four-digit numeric strings, leading zeros preserved, all three decimal positions. No units used. Signs and OL unsupported."
+  },
+  "exclusion_rationale": {
+    "train_3p004_repeat": "Only this digit label conflicts with the otherwise consistent segment dataset, including later held final-4 observation. Original label and raw evidence preserved; cause not established.",
+    "train_0p762_hold": "Only decimal label conflicts with controlled range evidence. Digits retained for construction; original string preserved; cause not established."
+  },
+  "evidence": {
+    "dataset": "dataset.json",
+    "states": "states/",
+    "raw": "evidence/",
+    "replay": "replay_results.json",
+    "overload": "overload_observation.json"
+  }
+}
