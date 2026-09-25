@@ -1,0 +1,8 @@
+firmware/meter_dashboard/secrets.h
+firmware/meter_dashboard/build/
+*.bin
+*.elf
+*.map
+__pycache__/
+*.py[cod]
+.DS_Store
