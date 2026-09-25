@@ -12,9 +12,9 @@ Passive LCD observation and browser dashboard for a Crenova MS8233D 6000-count m
 
 ## Status
 
-The firmware acquires the 60-cell logical LCD state, decodes validated numeric digits and decimal points, recognizes the proven semantic cells, and serves an HTTP/WebSocket dashboard. The final validated dashboard also displays the confirmed minus sign.
+The firmware acquires the 60-cell logical LCD state, decodes validated numeric digits and decimal points, recognizes the proven semantic cells, and serves an HTTP/WebSocket dashboard. The dashboard also displays the minus sign, V/ohm/F units, diode, continuity and OL.
 
-Unresolved: V versus ohm, F, diode, continuity, OL, current units/prefixes, APO, battery, NCV, and Live. See [docs/MAPPING_STATUS.md](docs/MAPPING_STATUS.md).
+Unresolved: micro prefix, current units/prefixes, APO, battery, NCV, and Live. See [docs/MAPPING_STATUS.md](docs/MAPPING_STATUS.md).
 
 ## Build and flash
 
