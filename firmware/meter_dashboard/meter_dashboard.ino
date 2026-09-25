@@ -23,25 +23,26 @@ const char PAGE[] PROGMEM=R"HTML(<!doctype html><html><head><meta charset=utf-8>
 *{box-sizing:border-box}body{margin:0;background:#0d1210;color:#e6f4eb;font:16px system-ui,sans-serif}.panel{max-width:900px;margin:auto;min-height:100vh;padding:18px 20px}
 header{display:flex;justify-content:space-between;align-items:center;letter-spacing:.12em;color:#8fa898;font-size:.75rem}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#7e8b82;margin-right:6px}.on{background:#59db86;box-shadow:0 0 10px #59db86}
 .lcd{margin:6vh 0 1rem;padding:1.2rem 1rem 1rem;border:1px solid #26362d;border-radius:14px;background:#111a15}
-.tags{display:flex;gap:.5rem;min-height:1.6rem;flex-wrap:wrap}.tags.fn{justify-content:center;border-top:1px solid #1f2d25;padding-top:.8rem}.tag{font-size:.85rem;font-weight:600;letter-spacing:.08em;color:#33453a;padding:.15rem .55rem;border-radius:6px}.tag.on{color:#0d1210;background:#7ee39b}.tag.warn.on{background:#f0c85a}
+.tags{display:flex;gap:.5rem;min-height:1.6rem;flex-wrap:wrap}.tags.fn{justify-content:center;border-top:1px solid #1f2d25;padding-top:.8rem}.sep{width:1.2rem}.tag{font-size:.85rem;font-weight:600;letter-spacing:.08em;color:#33453a;padding:.15rem .55rem;border-radius:6px}.tag.on{color:#0d1210;background:#7ee39b}.tag.warn.on{background:#f0c85a}
 .read{display:flex;align-items:baseline;justify-content:center;gap:.6rem;margin:1.5rem 0 1rem;flex-wrap:nowrap}.number{font:clamp(3.6rem,16vw,9rem) ui-monospace,monospace;letter-spacing:-.06em;line-height:1;color:#d8ffd6;white-space:nowrap}.number.ol{color:#f0c85a}.number.stale{opacity:.35}
 .unit{font-size:clamp(1.6rem,6vw,3.6rem);color:#7ee39b;min-width:2.2em;white-space:nowrap}.unit.q{color:#5f7268;font-size:1.1rem}
 .chart{position:relative;height:150px;margin-top:1.4rem;padding:8px 0 20px 64px}.chart svg{width:100%;height:100%;display:block;border-left:1px solid #2c3f33;border-bottom:1px solid #2c3f33}.chart polyline{fill:none;stroke:#64db8b;stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-.y{position:absolute;left:0;width:58px;text-align:right;color:#829087;font-size:.7rem}.y.t{top:4px}.y.b{bottom:16px}.x{position:absolute;left:64px;right:0;bottom:0;display:flex;justify-content:space-between;color:#829087;font-size:.7rem}
+.stats{display:flex;gap:1rem;justify-content:space-between;margin-top:1rem;color:#829087;font-size:.7rem;letter-spacing:.1em}.stats b{display:block;color:#d8ffd6;font:1.1rem ui-monospace,monospace;letter-spacing:0;margin-top:.2rem}.y{white-space:nowrap;position:absolute;left:0;width:58px;text-align:right;color:#829087;font-size:.7rem}.y.t{top:4px}.y.b{bottom:16px}.x{position:absolute;left:64px;right:0;bottom:0;display:flex;justify-content:space-between;color:#829087;font-size:.7rem}
 </style></head><body><main class=panel><header><span>CRENOVA · MS8233D</span><span><i id=dot class=dot></i><span id=status>CONNECTING</span></span></header>
-<section class=lcd><div class=tags><span data-u=V class=tag>V</span><span data-u=Ω class=tag>Ω</span><span data-u=F class=tag>F</span><span data-u=Hz class=tag>Hz</span><span data-u=% class=tag>%</span><span id=diode class=tag>DIODE</span><span id=continuity class=tag>CONT</span></div><div class=tags><span id=dc class=tag>DC</span><span id=ac class=tag>AC</span></div>
+<section class=lcd><div class=tags><span data-u=V class=tag>V</span><span data-u=Ω class=tag>Ω</span><span data-u=F class=tag>F</span><span data-u=Hz class=tag>Hz</span><span data-u=% class=tag>%</span><span id=diode class=tag>DIODE</span><span id=continuity class=tag>CONT</span><span class=sep></span><span id=dc class=tag>DC</span><span id=ac class=tag>AC</span></div>
 <div class=read><span id=number class=number>—</span><span id=unit class=unit></span></div><div class="tags fn"><span id=auto class=tag>AUTO</span><span id=hold class="tag warn">HOLD</span><span id=max class=tag>MAX</span><span id=min class=tag>MIN</span></div></section>
 <div class=chart><span id=hi class="y t"></span><span id=lo class="y b"></span><svg viewBox="0 0 100 100" preserveAspectRatio=none><polyline id=line points=""/></svg><div class=x><span id=span>—</span><span>now</span></div></div>
-</main><script>
+<div class=stats><div>MIN<b id=smin>—</b></div><div>MAX<b id=smax>—</b></div><div>AVG<b id=savg>—</b></div><div>SAMPLES<b id=sn>—</b></div></div></main><script>
 const $=id=>document.getElementById(id),P={M:1e6,k:1e3,m:1e-3,n:1e-9},MAX=150;let h=[],key='',last=0;
-function eng(v,u){if(v==null)return'';let a=Math.abs(v),s=a>=1e6?[1e6,'M']:a>=1e3?[1e3,'k']:a>=1||a===0?[1,'']:a>=1e-3?[1e-3,'m']:[1e-9,'n'];return +(v/s[0]).toPrecision(4)+' '+s[1]+u}
-function graph(s){let u=s.unit||'',k=u+'|'+(s.mode||'');if(k!==key){key=k;h=[]}
+function eng(v,u){if(v==null)return'';let a=Math.abs(v),s=a>=1e6?[1e6,'M']:a>=1e3?[1e3,'k']:a>=1||a===0?[1,'']:a>=1e-3?[1e-3,'m']:a>=1e-6?[1e-6,'µ']:[1e-9,'n'];return +(v/s[0]).toPrecision(4)+' '+s[1]+u}
+function stats(v,u){let sum=v.reduce((x,y)=>x+y,0);$('smin').textContent=eng(Math.min(...v),u);$('smax').textContent=eng(Math.max(...v),u);$('savg').textContent=eng(sum/v.length,u);$('sn').textContent=v.length}
+function graph(s){if(s.hold)return;let u=s.unit||'',k=u+'|'+(s.mode||'');if(k!==key){key=k;h=[]}
  let v=(s.value==null||!s.unit)?null:s.value*(P[s.prefix]||1);h.push([Date.now(),v]);if(h.length>MAX)h.shift();
  let vs=h.map(p=>p[1]).filter(x=>x!=null);if(!vs.length){$('line').setAttribute('points','');$('hi').textContent=$('lo').textContent=$('span').textContent='';return}
  let a=Math.min(...vs),b=Math.max(...vs);if(a===b){a-=Math.abs(a)*.05||1;b+=Math.abs(b)*.05||1}
  let t0=h[0][0],dt=Math.max(1,Date.now()-t0),seg=[],pts=[];
  h.forEach(p=>{if(p[1]!=null)pts.push(((p[0]-t0)*100/dt).toFixed(2)+','+(95-(p[1]-a)*90/(b-a)).toFixed(2))});
- $('line').setAttribute('points',pts.join(' '));$('hi').textContent=eng(b,u);$('lo').textContent=eng(a,u);$('span').textContent='-'+Math.round(dt/1000)+' s'}
+ $('line').setAttribute('points',pts.join(' '));stats(vs,u);$('hi').textContent=eng(b,u);$('lo').textContent=eng(a,u);$('span').textContent='-'+Math.round(dt/1000)+' s'}
 function show(s){last=Date.now();let n=$('number');n.className='number'+(s.ol?' ol':'');n.textContent=s.display??(s.ol?'OL':'—');
  let u=$('unit');if(s.unit){u.className='unit';u.textContent=(s.prefix||'')+s.unit}else{u.className='unit q';u.textContent=s.prefix?s.prefix+' ?':''}
  ['ac','dc','auto','hold','max','min','diode','continuity'].forEach(k=>$(k).classList.toggle('on',s[k]===true));let sp=s.diode||s.continuity;document.querySelectorAll('[data-u]').forEach(e=>e.classList.toggle('on',!sp&&e.dataset.u===s.unit));graph(s)}
