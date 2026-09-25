@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "meter": "Crenova MS8233D",
+  "coordinate_convention": "bit index = 4 * SEG + COM; lit bit = 0; unlit bit = 1",
+  "status": "partial_evidence_backed_semantic_map_with_stage3_minus_validation",
+  "confirmed_cells": {
+    "SEG0xCOM1": {"index": 1, "semantic": "Hz", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG2xCOM1": {"index": 9, "semantic": "percent", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG2xCOM2": {"index": 10, "semantic": "k_prefix", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG2xCOM3": {"index": 11, "semantic": "m_prefix_voltage", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG3xCOM1": {"index": 13, "semantic": "M_prefix", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG3xCOM2": {"index": 14, "semantic": "n_prefix_capacitance", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG3xCOM3": {"index": 15, "semantic": "m_prefix_capacitance", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG12xCOM1": {"index": 49, "semantic": "DC", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG12xCOM2": {"index": 50, "semantic": "minus", "lit_bit": "0", "unlit_bit": "1", "evidence": ["negative_001p3_mv_hold", "positive_000p1_mv_hold", "negative_004p5_mv_hold"]},
+    "SEG12xCOM3": {"index": 51, "semantic": "AC", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG13xCOM0": {"index": 52, "semantic": "auto", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG13xCOM3": {"index": 55, "semantic": "hold", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG14xCOM2": {"index": 58, "semantic": "min", "lit_bit": "0", "unlit_bit": "1"},
+    "SEG14xCOM3": {"index": 59, "semantic": "max", "lit_bit": "0", "unlit_bit": "1"}
+  },
+  "unresolved": {
+    "V_and_ohm": "Two controlled cells changed together; neither is individually assigned.",
+    "F": "Unchanged between controlled mF and nF states.",
+    "diode_and_continuity": "A compound of four cells; no individual assignment.",
+    "OL": "Observed but not independently isolated.",
+    "current_units_prefixes": "Not safely exercised.",
+    "APO_battery_NCV_live": "Not safely exercised."
+  }
+}
