@@ -19,7 +19,7 @@ struct Edge{uint32_t lo,hi;int mv;}; struct Frame{Edge edge[9];uint32_t begin[8]
 httpd_handle_t server=nullptr; int wsClients[4]={-1,-1,-1,-1};
 String lastPublished, candidate; uint8_t candidateCount=0; String lastStateJson="{\"status\":\"starting\"}";
 
-const char PAGE[] PROGMEM=R"HTML(<!doctype html><html><head><meta name=viewport content="width=device-width,initial-scale=1"><title>MS8233D</title><style>
+const char PAGE[] PROGMEM=R"HTML(<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>MS8233D</title><style>
 *{box-sizing:border-box}body{margin:0;background:#0d1210;color:#e6f4eb;font:16px system-ui,sans-serif}.panel{max-width:900px;margin:auto;min-height:100vh;padding:18px 20px}
 header{display:flex;justify-content:space-between;align-items:center;letter-spacing:.12em;color:#8fa898;font-size:.75rem}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#7e8b82;margin-right:6px}.on{background:#59db86;box-shadow:0 0 10px #59db86}
 .lcd{margin:6vh 0 1rem;padding:1.2rem 1rem 1rem;border:1px solid #26362d;border-radius:14px;background:#111a15}
