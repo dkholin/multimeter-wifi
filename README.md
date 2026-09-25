@@ -32,3 +32,8 @@ arduino-cli upload -p /dev/your-port --fqbn esp32:esp32:XIAO_ESP32C6 firmware/me
 ## Safety
 
 This project passively observes LCD signals. Develop and validate on a low-voltage bench; no mains testing is required for project development.
+
+## Dashboard notes
+
+- Browser-side only: function label, graph (30 s / 2 min / 10 min), min/max/avg, and record + CSV export (1 Hz, live readings only, not persisted across reloads).
+- If the serial log shows `sync_edge_uncertainty` after rebooting the ESP32, power-cycle the meter; readings resume.
