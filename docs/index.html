@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Multimeter Wi-Fi</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0f1412;color:#e8f3ec;font:16px system-ui,-apple-system,sans-serif}
+main{max-width:920px;margin:auto;min-height:100vh;padding:20px 20px 32px;background:linear-gradient(145deg,#18231e,#0f1412)}
+header{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#9ab0a2;font-size:.78rem;letter-spacing:.08em}
+.live{display:flex;gap:7px;align-items:center}.dot{width:9px;height:9px;border-radius:50%;background:#66756c}.dot.on{background:#58dc84;box-shadow:0 0 10px #58dc84}
+.readout{text-align:center;margin:10vh 0 1rem}.number{font:clamp(4.6rem,18vw,10rem) ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.07em;line-height:1;color:#ddffda}
+.unit{font-size:clamp(1.5rem,5vw,3rem);min-height:2.5rem;color:#86dd9c}.flags{display:flex;flex-wrap:wrap;justify-content:center;gap:.55rem;margin:2rem 0}
+.flag{border:1px solid #3d5045;border-radius:999px;padding:.35rem .75rem;color:#718077}.flag.active{color:#d4ffdc;border-color:#69dd90;background:#173423}
+.chartbox{position:relative;height:145px;margin:2rem 0 0;padding:10px 0 22px 48px;border-top:1px solid #314238}
+.chartbox svg{width:100%;height:100%;overflow:visible}.chartbox polyline{fill:none;stroke:#63db89;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.y{position:absolute;left:0;color:#839188;font-size:.7rem}.y.top{top:10px}.y.bottom{bottom:24px}.x{position:absolute;left:48px;right:0;bottom:1px;display:flex;justify-content:space-between;color:#839188;font-size:.7rem}
+.note{text-align:center;color:#849188;font-size:.82rem;margin-top:1.1rem}.topic{opacity:.7;word-break:break-all}
+</style>
+</head>
+<body><main>
+<header><span>MULTIMETER · WIFI</span><span class="live"><i id="dot" class="dot"></i><span id="status">CONNECTING</span></span></header>
+<section class="readout"><div id="number" class="number">—</div><div id="unit" class="unit"></div></section>
+<section class="flags">
+<span id="ac" class="flag">AC</span><span id="dc" class="flag">DC</span><span id="auto" class="flag">AUTO</span><span id="hold" class="flag">HOLD</span>
+<span id="max" class="flag">MAX</span><span id="min" class="flag">MIN</span><span id="ol" class="flag">OL</span><span id="continuity" class="flag">CONTINUITY</span><span id="diode" class="flag">DIODE</span>
+</section>
+<div class="chartbox"><span id="high" class="y top">—</span><span id="low" class="y bottom">—</span><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline id="line" points=""></polyline></svg><div class="x"><span>older</span><span>latest</span></div></div>
+<div id="note" class="note">Waiting for meter data…</div>
+<div id="topicLabel" class="note topic"></div>
+</main>
+<script>
+const DEFAULT_TOPIC="multimeter-wifi-dkholin-7c1b9f2d";
+const params=new URLSearchParams(location.search);
+const topic=params.get("topic")||DEFAULT_TOPIC;
+const base="https://ntfy.sh/"+encodeURIComponent(topic);
+const $=id=>document.getElementById(id);
+const history=[];
+let lastMessageTime=0;
+$("topicLabel").textContent="topic: "+topic;
+function setFlag(id,v){$(id).classList.toggle("active",v===true)}
+function draw(v){
+  if(typeof v!=="number"||!Number.isFinite(v))return;
+  history.push(v); if(history.length>60)history.shift();
+  const a=Math.min(...history),b=Math.max(...history),d=b-a||1;
+  $("high").textContent=b.toPrecision(4); $("low").textContent=a.toPrecision(4);
+  $("line").setAttribute("points",history.map((x,i)=>`${i*100/Math.max(1,history.length-1)},${95-(x-a)*90/d}`).join(" "));
+}
+function render(s,time){
+  $("number").textContent=s.display??(s.ol?"OL":"—");
+  $("unit").textContent=[s.prefix,s.unit].filter(Boolean).join("");
+  ["ac","dc","auto","hold","max","min","ol","continuity","diode"].forEach(k=>setFlag(k,s[k]));
+  $("note").textContent=(s.raw_state_id?"state "+s.raw_state_id:"live state")+(time?" · "+new Date(time*1000).toLocaleTimeString():"");
+  draw(s.value); lastMessageTime=Date.now();
+}
+function envelope(e){
+  if(!e||e.event!=="message"||!e.message)return;
+  try{render(JSON.parse(e.message),e.time)}catch(err){console.warn("Bad meter payload",err)}
+}
+async function latest(){
+  try{
+    const r=await fetch(base+"/json?poll=1&since=latest",{cache:"no-store"});
+    const t=await r.text();
+    t.trim().split("\n").filter(Boolean).forEach(x=>{try{envelope(JSON.parse(x))}catch{}});
+  }catch(err){console.warn(err)}
+}
+function live(){
+  const es=new EventSource(base+"/sse?since=latest");
+  es.onopen=()=>{$("dot").classList.add("on");$("status").textContent="LIVE"};
+  es.onmessage=e=>{try{envelope(JSON.parse(e.data))}catch{}};
+  es.onerror=()=>{$("dot").classList.remove("on");$("status").textContent="RECONNECTING"};
+}
+latest().finally(live);
+setInterval(()=>{
+  if(lastMessageTime&&Date.now()-lastMessageTime>120000){$("dot").classList.remove("on");$("status").textContent="STALE"}
+},10000);
+</script></body></html>

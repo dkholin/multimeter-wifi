@@ -6,6 +6,8 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <esp_http_server.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include "secrets.h"
 
 constexpr int COM_PIN=D0, SEG_PIN=D1, PROBE_PIN=D2;
@@ -16,8 +18,10 @@ float centers[4], tolerance[4]; uint32_t hist[256], calId=0,seq=0,lastStatus=0; 
 const char *errorReason="none"; int errorPhase=-1;
 struct Edge{uint32_t lo,hi;int mv;}; struct Frame{Edge edge[9];uint32_t begin[8],end[8],post[8];uint16_t mv[8][N],com[8];} f;
 
+const char *PUBLIC_RELAY_TOPIC="multimeter-wifi-dkholin-7c1b9f2d";
+const char *PUBLIC_RELAY_URL="https://ntfy.sh/multimeter-wifi-dkholin-7c1b9f2d";
 httpd_handle_t server=nullptr; int wsClients[4]={-1,-1,-1,-1};
-String lastPublished, candidate; uint8_t candidateCount=0; String lastStateJson="{\"status\":\"starting\"}";
+String lastPublished, candidate, relayPending; uint32_t lastRelayAttempt=0; uint8_t candidateCount=0; String lastStateJson="{\"status\":\"starting\"}";
 
 const char PAGE[] PROGMEM=R"HTML(<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>MS8233D</title><style>
 *{box-sizing:border-box}body{margin:0;background:#0d1210;color:#e6f4eb;font:16px system-ui,sans-serif}.panel{max-width:900px;margin:auto;min-height:100vh;padding:18px 20px}
@@ -75,9 +79,20 @@ uint8_t litBits(const String&m,int pos){static const uint8_t cell[4][7]={{40,41,
 bool isOL(const String&m){return litBits(m,0)==0&&litBits(m,1)==0x3f&&litBits(m,2)==0x38&&litBits(m,3)==0;} /* "0" then "L"; decimal point position varies by mode */
 String jb(bool v){return v?"true":"false";} String js(const String&v){return v.length()?"\""+v+"\"":"null";}
 String normalize(const String&m){bool ol=isOL(m);double v=0;String display=ol?"":number(m,v);bool negative=lit(m,50);if(display.length()&&negative){display="-"+display;v=-v;}bool diode=lit(m,53),cont=lit(m,54);String unit=lit(m,1)?"Hz":lit(m,9)?"%":lit(m,3)?"V":lit(m,6)?"\xCE\xA9":lit(m,7)?"F":"";String prefix="";if(lit(m,13))prefix="M";else if(lit(m,10))prefix="k";else if(lit(m,11)||lit(m,15))prefix="m";else if(lit(m,14))prefix="n";String mode=diode?"diode":cont?"continuity":lit(m,51)?"AC":lit(m,49)?"DC":"";String shown=ol?"OL":display;bool hasValue=!ol&&display.length();return "{\"raw_state_id\":\""+idFor(m)+"\",\"display\":"+js(shown)+",\"value\":"+(hasValue?String(v,6):"null")+",\"negative\":"+jb(negative)+",\"unit\":"+js(unit)+",\"prefix\":"+js(prefix)+",\"mode\":"+js(mode)+",\"ac\":"+jb(lit(m,51))+",\"dc\":"+jb(lit(m,49))+",\"auto\":"+jb(lit(m,52))+",\"hold\":"+jb(lit(m,55))+",\"max\":"+jb(lit(m,59))+",\"min\":"+jb(lit(m,58))+",\"ol\":"+jb(ol)+",\"continuity\":"+jb(cont)+",\"diode\":"+jb(diode)+"}";}
-void broadcast(const String&s){lastStateJson=s;for(int&i:wsClients)if(i>=0){httpd_ws_frame_t fr={};fr.type=HTTPD_WS_TYPE_TEXT;fr.payload=(uint8_t*)s.c_str();fr.len=s.length();if(httpd_ws_send_frame_async(server,i,&fr)!=ESP_OK)i=-1;}}
+void publishRelay(){
+  if(!relayPending.length()||WiFi.status()!=WL_CONNECTED||millis()-lastRelayAttempt<10000)return;
+  lastRelayAttempt=millis();
+  WiFiClientSecure client; client.setInsecure();
+  HTTPClient https;
+  if(!https.begin(client,PUBLIC_RELAY_URL))return;
+  https.addHeader("Content-Type","text/plain");
+  int code=https.POST(relayPending);
+  https.end();
+  if(code>=200&&code<300) relayPending="";
+}
+void broadcast(const String&s){relayPending=s;lastStateJson=s;for(int&i:wsClients)if(i>=0){httpd_ws_frame_t fr={};fr.type=HTTPD_WS_TYPE_TEXT;fr.payload=(uint8_t*)s.c_str();fr.len=s.length();if(httpd_ws_send_frame_async(server,i,&fr)!=ESP_OK)i=-1;}}
 esp_err_t root(httpd_req_t*r){httpd_resp_set_type(r,"text/html");httpd_resp_set_hdr(r,"Cache-Control","no-store, max-age=0");httpd_resp_send_chunk(r,PAGE,HTTPD_RESP_USE_STRLEN);return httpd_resp_send_chunk(r,nullptr,0);}esp_err_t ws(httpd_req_t*r){if(r->method==HTTP_GET){for(int&i:wsClients)if(i<0){i=httpd_req_to_sockfd(r);break;}httpd_ws_frame_t fr={};fr.type=HTTPD_WS_TYPE_TEXT;fr.payload=(uint8_t*)lastStateJson.c_str();fr.len=lastStateJson.length();return httpd_ws_send_frame(r,&fr);}return ESP_OK;}
 void startWeb(){httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();cfg.max_open_sockets=7;if(httpd_start(&server,&cfg)!=ESP_OK)return;httpd_uri_t a={.uri="/",.method=HTTP_GET,.handler=root,.user_ctx=nullptr,.is_websocket=false};httpd_uri_t b={.uri="/ws",.method=HTTP_GET,.handler=ws,.user_ctx=nullptr,.is_websocket=true};httpd_register_uri_handler(server,&a);httpd_register_uri_handler(server,&b);}
 void connectWifi(){WiFi.mode(WIFI_STA);WiFi.begin(METER_WIFI_SSID,METER_WIFI_PASSWORD);uint32_t began=millis();while(WiFi.status()!=WL_CONNECTED&&millis()-began<20000)delay(250);if(WiFi.status()==WL_CONNECTED){MDNS.begin("meter");startWeb();Serial.printf("dashboard http://meter.local/  http://%s/\n",WiFi.localIP().toString().c_str());}else Serial.println("Wi-Fi unavailable; check secrets.h and reboot.");}
 void setup(){pinMode(COM_PIN,INPUT);pinMode(SEG_PIN,INPUT);pinMode(PROBE_PIN,INPUT);for(int b=0;b<4;b++){digitalWrite(ADDR[b],LOW);pinMode(ADDR[b],OUTPUT);}analogReadResolution(12);analogSetPinAttenuation(COM_PIN,ADC_11db);analogSetPinAttenuation(SEG_PIN,ADC_11db);analogSetPinAttenuation(PROBE_PIN,ADC_11db);Serial.begin(115200);delay(300);Serial.println("meter dashboard boot");connectWifi();}
-void loop(){if(!calibrated)calibrated=calibrate();if(calibrated){seq++;String m;vTaskSuspendAll();bool valid=capture()&&matrix(m);xTaskResumeAll();if(valid){if(m==candidate)candidateCount++;else{candidate=m;candidateCount=1;}if(candidateCount>=3&&m!=lastPublished){lastPublished=m;broadcast(normalize(m));}}else{candidate="";candidateCount=0;}}if(millis()-lastStatus>5000){lastStatus=millis();Serial.printf("wifi=%d ip=%s calibrated=%d error=%s\\n",WiFi.status(),WiFi.localIP().toString().c_str(),calibrated,errorReason);}delay(60);}
+void loop(){if(!calibrated)calibrated=calibrate();if(calibrated){seq++;String m;vTaskSuspendAll();bool valid=capture()&&matrix(m);xTaskResumeAll();if(valid){if(m==candidate)candidateCount++;else{candidate=m;candidateCount=1;}if(candidateCount>=3&&m!=lastPublished){lastPublished=m;broadcast(normalize(m));}}else{candidate="";candidateCount=0;}}if(millis()-lastStatus>5000){lastStatus=millis();Serial.printf("wifi=%d ip=%s calibrated=%d error=%s\\n",WiFi.status(),WiFi.localIP().toString().c_str(),calibrated,errorReason);}publishRelay();delay(60);}
