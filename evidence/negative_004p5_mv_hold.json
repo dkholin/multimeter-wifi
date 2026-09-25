@@ -1,0 +1,9 @@
+{
+  "capture_kind": "temporary_debug_raw_export",
+  "physical_lcd_user_report": "-004.5 mV, DC, AUTO, HOLD",
+  "raw_state_id": "2707fc56",
+  "matrix60": "111011111110111101001001001000110000010100000101000101101111",
+  "coordinate_convention": "bit index = 4 * SEG + COM",
+  "stable_source": "current dashboard firmware three-frame stable-state publication",
+  "minus_candidate_index_50_bit": "0"
+}
