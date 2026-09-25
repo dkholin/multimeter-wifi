@@ -29,7 +29,7 @@ header{display:flex;justify-content:space-between;align-items:center;letter-spac
 .chart{position:relative;height:150px;margin-top:1.4rem;padding:8px 0 20px 64px}.chart svg{width:100%;height:100%;display:block;border-left:1px solid #2c3f33;border-bottom:1px solid #2c3f33}.chart polyline{fill:none;stroke:#64db8b;stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 .y{position:absolute;left:0;width:58px;text-align:right;color:#829087;font-size:.7rem}.y.t{top:4px}.y.b{bottom:16px}.x{position:absolute;left:64px;right:0;bottom:0;display:flex;justify-content:space-between;color:#829087;font-size:.7rem}
 </style></head><body><main class=panel><header><span>CRENOVA · MS8233D</span><span><i id=dot class=dot></i><span id=status>CONNECTING</span></span></header>
-<section class=lcd><div class=tags><span id=dc class=tag>DC</span><span id=ac class=tag>AC</span><span id=diode class=tag>DIODE</span><span id=continuity class=tag>CONT</span></div>
+<section class=lcd><div class=tags><span data-u=V class=tag>V</span><span data-u=Ω class=tag>Ω</span><span data-u=F class=tag>F</span><span data-u=Hz class=tag>Hz</span><span data-u=% class=tag>%</span><span id=diode class=tag>DIODE</span><span id=continuity class=tag>CONT</span></div><div class=tags><span id=dc class=tag>DC</span><span id=ac class=tag>AC</span></div>
 <div class=read><span id=number class=number>—</span><span id=unit class=unit></span></div><div class="tags fn"><span id=auto class=tag>AUTO</span><span id=hold class="tag warn">HOLD</span><span id=max class=tag>MAX</span><span id=min class=tag>MIN</span></div></section>
 <div class=chart><span id=hi class="y t"></span><span id=lo class="y b"></span><svg viewBox="0 0 100 100" preserveAspectRatio=none><polyline id=line points=""/></svg><div class=x><span id=span>—</span><span>now</span></div></div>
 </main><script>
@@ -44,7 +44,7 @@ function graph(s){let u=s.unit||'',k=u+'|'+(s.mode||'');if(k!==key){key=k;h=[]}
  $('line').setAttribute('points',pts.join(' '));$('hi').textContent=eng(b,u);$('lo').textContent=eng(a,u);$('span').textContent='-'+Math.round(dt/1000)+' s'}
 function show(s){last=Date.now();let n=$('number');n.className='number'+(s.ol?' ol':'');n.textContent=s.display??(s.ol?'OL':'—');
  let u=$('unit');if(s.unit){u.className='unit';u.textContent=(s.prefix||'')+s.unit}else{u.className='unit q';u.textContent=s.prefix?s.prefix+' ?':''}
- ['ac','dc','auto','hold','max','min','diode','continuity'].forEach(k=>$(k).classList.toggle('on',s[k]===true));graph(s)}
+ ['ac','dc','auto','hold','max','min','diode','continuity'].forEach(k=>$(k).classList.toggle('on',s[k]===true));let sp=s.diode||s.continuity;document.querySelectorAll('[data-u]').forEach(e=>e.classList.toggle('on',!sp&&e.dataset.u===s.unit));graph(s)}
 function go(){let w=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');
  w.onopen=()=>{$('dot').className='dot on';$('status').textContent='LIVE'};w.onmessage=e=>{let s=JSON.parse(e.data);if(s.status)return;show(s)};
  w.onclose=()=>{$('dot').className='dot';$('status').textContent='RECONNECTING';$('number').classList.add('stale');setTimeout(go,1000)}}go();
