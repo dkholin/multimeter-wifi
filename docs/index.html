@@ -51,7 +51,7 @@ function render(s,time){
   $("unit").textContent=[s.prefix,s.unit].filter(Boolean).join("");
   ["ac","dc","auto","hold","max","min","ol","continuity","diode"].forEach(k=>setFlag(k,s[k]));
   $("note").textContent=(s.raw_state_id?"state "+s.raw_state_id:"live state")+(time?" · "+new Date(time*1000).toLocaleTimeString():"");
-  draw(s.value); lastMessageTime=Date.now();
+  draw(s.value); lastMessageTime=Date.now();$("dot").classList.add("on");$("status").textContent="LIVE";$("number").style.opacity="";
 }
 function envelope(e){
   if(!e||e.event!=="message"||!e.message)return;
@@ -72,6 +72,6 @@ function live(){
 }
 latest().finally(live);
 setInterval(()=>{
-  if(lastMessageTime&&Date.now()-lastMessageTime>120000){$("dot").classList.remove("on");$("status").textContent="STALE"}
-},10000);
+  if(lastMessageTime&&Date.now()-lastMessageTime>30000){$("dot").classList.remove("on");$("status").textContent="OFFLINE";$("number").style.opacity=.35}
+},2000);
 </script></body></html>

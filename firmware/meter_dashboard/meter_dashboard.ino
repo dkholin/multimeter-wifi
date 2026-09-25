@@ -14,7 +14,7 @@ constexpr int COM_PIN=D0, SEG_PIN=D1, PROBE_PIN=D2;
 constexpr int ADDR[4]={D3,D6,D7,D8}; constexpr int N=15;
 constexpr uint8_t EXPECTED[8]={0,3,2,1,2,1,2,1};
 constexpr uint8_t COMS[4][8]={{0,3,2,1,2,1,2,1},{2,1,0,3,2,1,2,1},{2,1,2,1,0,3,2,1},{2,1,2,1,2,1,0,3}};
-float centers[4], tolerance[4]; uint32_t hist[256], calId=0,seq=0,lastStatus=0; bool calibrated=false;
+float centers[4], tolerance[4]; uint32_t lastPubMs=0, hist[256], calId=0,seq=0,lastStatus=0; bool calibrated=false;
 const char *errorReason="none"; int errorPhase=-1;
 struct Edge{uint32_t lo,hi;int mv;}; struct Frame{Edge edge[9];uint32_t begin[8],end[8],post[8];uint16_t mv[8][N],com[8];} f;
 
@@ -44,7 +44,8 @@ function rinfo(){$('rinfo').textContent=rec?fmtT(Date.now()-t0r)+' · '+rows.len
 function fmtT(ms){let t=Math.floor(ms/1000);return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')}
 $('rb').onclick=()=>{if(rec){rec=null;$('rb').classList.remove('on');$('rb').textContent='● RECORD';$('dl').disabled=!rows.length}else{rows=[];rec=1;t0r=Date.now();if(cur)logRow(cur);$('rb').classList.add('on');$('rb').textContent='■ STOP';$('dl').disabled=true}rinfo()};
 $('dl').onclick=()=>{let c='elapsed_s,iso_time,value_si,display,unit,prefix,mode\n'+rows.map(r=>r.join(',')).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:'text/csv'}));a.download='meter-'+new Date(t0r).toISOString().slice(0,19).replace(/[:T]/g,'-')+'.csv';a.click()};
-let cur=null;setInterval(()=>{if(rec){if(cur)logRow(cur);rinfo()}if(cur)graph(cur)},1000);
+let cur=null;function stale(){return !last||Date.now()-last>10000}
+setInterval(()=>{if(last&&stale()&&$('status').textContent==='LIVE'){$('dot').className='dot';$('status').textContent='OFFLINE';$('number').classList.add('stale')}if(stale())return;if(rec){if(cur)logRow(cur);rinfo()}if(cur)graph(cur)},1000);
 function logRow(s){if(!rec||s.hold)return;let v=s.value==null?'':s.value*(P[s.prefix]||1);rows.push([((Date.now()-t0r)/1000).toFixed(2),new Date().toISOString(),v,s.display||'',s.unit||'',s.prefix||'',[s.diode?'diode':s.continuity?'continuity':s.ac?'AC':s.dc?'DC':''].join('')]);rinfo()}
 let W=120;
 function graph(s){if(s.hold)return;let u=s.unit||'',k=u+'|'+(s.mode||''),now=Date.now();if(k!==key){key=k;h=[]}
@@ -56,7 +57,7 @@ function render(u){let now=Date.now(),lo=now-W*1000,w=h.filter(p=>p[0]>=lo),vs=w
  let pts=[];w.forEach(p=>{if(p[1]!=null)pts.push(((p[0]-lo)*100/(W*1000)).toFixed(2)+','+(95-(p[1]-a)*90/(b-a)).toFixed(2))});
  $('line').setAttribute('points',pts.join(' '));stats(vs,u);$('hi').textContent=eng(b,u);$('lo').textContent=eng(a,u)}
 document.querySelectorAll('[data-w]').forEach(e=>e.onclick=()=>{W=+e.dataset.w;document.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('on',x===e));render(key.split('|')[0])});
-function show(s){last=Date.now();let n=$('number');n.className='number'+(s.ol?' ol':'');n.textContent=s.display??(s.ol?'OL':'—');
+function show(s){last=Date.now();$('dot').className='dot on';$('status').textContent='LIVE';let n=$('number');n.className='number'+(s.ol?' ol':'');n.textContent=s.display??(s.ol?'OL':'—');
  let u=$('unit');if(s.unit){u.className='unit';u.textContent=(s.prefix||'')+s.unit}else{u.className='unit q';u.textContent=s.prefix?s.prefix+' ?':''}
  ['auto','hold','max','min'].forEach(k=>$(k).classList.toggle('on',s[k]===true));let N={'Ω':'RESISTANCE',F:'CAPACITANCE',Hz:'FREQUENCY','%':'DUTY CYCLE'},f=$('fn');f.textContent=s.diode?'DIODE':s.continuity?'CONTINUITY':s.unit==='V'?(s.ac?'AC ':s.dc?'DC ':'')+'VOLTAGE':N[s.unit]||'—';f.classList.toggle('on',f.textContent!=='—');cur=s;graph(s)}
 function go(){let w=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');
@@ -105,4 +106,4 @@ void startWeb(){httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();cfg.max_open_sockets=7
 void connectWifi(){WiFi.mode(WIFI_STA);WiFi.begin(METER_WIFI_SSID,METER_WIFI_PASSWORD);uint32_t began=millis();while(WiFi.status()!=WL_CONNECTED&&millis()-began<20000)delay(250);if(WiFi.status()==WL_CONNECTED){MDNS.begin("meter");startWeb();Serial.printf("dashboard http://meter.local/  http://%s/\n",WiFi.localIP().toString().c_str());}else Serial.println("Wi-Fi unavailable; check secrets.h and reboot.");}
 void setup(){pinMode(COM_PIN,INPUT);pinMode(SEG_PIN,INPUT);pinMode(PROBE_PIN,INPUT);for(int b=0;b<4;b++){digitalWrite(ADDR[b],LOW);pinMode(ADDR[b],OUTPUT);}analogReadResolution(12);analogSetPinAttenuation(COM_PIN,ADC_11db);analogSetPinAttenuation(SEG_PIN,ADC_11db);analogSetPinAttenuation(PROBE_PIN,ADC_11db);Serial.begin(115200);delay(300);Serial.println("meter dashboard boot");relayLock=xSemaphoreCreateMutex();connectWifi();xTaskCreate(relayTask,"relay",8192,nullptr,1,nullptr);}
 uint32_t nextCal=0,badFrames=0; uint8_t calFails=0;
-void loop(){if(!calibrated&&(int32_t)(millis()-nextCal)>=0){calibrated=calibrate();if(calibrated){calFails=0;badFrames=0;errorReason="none";}else{if(calFails<4)calFails++;nextCal=millis()+(250u<<calFails);}}if(calibrated){seq++;String m;vTaskSuspendAll();bool valid=capture()&&matrix(m);xTaskResumeAll();if(valid){badFrames=0;errorReason="none";if(m==candidate)candidateCount++;else{candidate=m;candidateCount=1;}if(candidateCount>=3&&m!=lastPublished){lastPublished=m;broadcast(normalize(m));}}else{candidate="";candidateCount=0;if(++badFrames>=150){calibrated=false;nextCal=0;lastPublished="";}}}if(millis()-lastStatus>5000){lastStatus=millis();Serial.printf("wifi=%d ip=%s calibrated=%d error=%s\\n",WiFi.status(),WiFi.localIP().toString().c_str(),calibrated,errorReason);}delay(60);}
+void loop(){if(!calibrated&&(int32_t)(millis()-nextCal)>=0){calibrated=calibrate();if(calibrated){calFails=0;badFrames=0;errorReason="none";}else{if(calFails<4)calFails++;nextCal=millis()+(250u<<calFails);}}if(calibrated){seq++;String m;vTaskSuspendAll();bool valid=capture()&&matrix(m);xTaskResumeAll();if(valid){badFrames=0;errorReason="none";if(m==candidate)candidateCount++;else{candidate=m;candidateCount=1;}if(candidateCount>=3&&(m!=lastPublished||millis()-lastPubMs>3000)){lastPublished=m;lastPubMs=millis();broadcast(normalize(m));}}else{candidate="";candidateCount=0;if(++badFrames>=150){calibrated=false;nextCal=0;lastPublished="";}}}if(millis()-lastStatus>5000){lastStatus=millis();Serial.printf("wifi=%d ip=%s calibrated=%d error=%s\\n",WiFi.status(),WiFi.localIP().toString().c_str(),calibrated,errorReason);}delay(60);}
