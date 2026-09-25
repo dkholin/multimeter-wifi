@@ -1,0 +1,15 @@
+{
+  "negative_reference": "negative_001p3_mv_hold.json",
+  "positive_reference": "positive_000p1_mv_hold.json",
+  "all_changed_indices": [16, 19, 20, 23, 25, 28, 30, 50],
+  "known_numeric_changed_indices": [16, 19, 20, 23, 25, 28, 30],
+  "non_numeric_changed_indices": [50],
+  "candidate": {
+    "cell": "SEG12xCOM2",
+    "index": 50,
+    "negative_bit": "0",
+    "positive_bit": "1",
+    "hypothesis": "minus sign lit when bit is 0"
+  },
+  "status": "candidate_only_requires_return_to_negative_verification"
+}
