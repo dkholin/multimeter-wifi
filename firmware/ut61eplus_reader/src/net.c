@@ -19,13 +19,13 @@
 #define RELAY_TOPIC "multimeter-wifi-dkholin-ut61eplus-4e8a1c"
 #define RELAY_URL "https://ntfy.sh/" RELAY_TOPIC
 #define MAX_JSON 640
-#define MAX_WS 4
+#define MAX_WS 6
 static const char *TAG = "NET";
 extern const unsigned char page_html[];
 extern const unsigned int page_html_len;
 
 static httpd_handle_t server;
-static int ws_fds[MAX_WS] = {-1, -1, -1, -1};
+static int ws_fds[MAX_WS] = {-1, -1, -1, -1, -1, -1};
 static char last_json[MAX_JSON] = "{\"status\":\"starting\"}";
 static char relay_pending[MAX_JSON];
 static uint32_t relay_version;
@@ -71,7 +71,7 @@ static void ws_send_work(void *arg) {
     char *s = arg;
     for (int i = 0; i < MAX_WS; i++) if (ws_fds[i] >= 0) {
         httpd_ws_frame_t fr = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)s, .len = strlen(s)};
-        if (httpd_ws_send_frame_async(server, ws_fds[i], &fr) != ESP_OK) ws_fds[i] = -1;
+        { esp_err_t e = httpd_ws_send_frame_async(server, ws_fds[i], &fr); if (e != ESP_OK) { ESP_LOGW(TAG, "ws send fd=%d slot=%d err=%s", ws_fds[i], i, esp_err_to_name(e)); ws_fds[i] = -1; } }
     }
     free(s);
 }
