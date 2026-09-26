@@ -58,7 +58,8 @@ static void on_close(httpd_handle_t s, int fd) {
 }
 static void start_web(void) {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
-    cfg.max_open_sockets = 7;
+    cfg.max_open_sockets = 13; // browsers preconnect idle sockets; leave room for WS clients
+    cfg.lru_purge_enable = true;
     cfg.close_fn = on_close;
     if (httpd_start(&server, &cfg) != ESP_OK) return;
     httpd_uri_t a = {.uri = "/", .method = HTTP_GET, .handler = root_get};
