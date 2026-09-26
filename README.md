@@ -37,3 +37,7 @@ This project passively observes LCD signals. Develop and validate on a low-volta
 
 - Browser-side only: function label, graph (30 s / 2 min / 10 min), min/max/avg, and record + CSV export (1 Hz, live readings only, not persisted across reloads).
 - If the serial log shows `sync_edge_uncertainty` after rebooting the ESP32, power-cycle the meter; readings resume.
+
+## UNI-T UT61E+ variant
+
+`firmware/ut61eplus_reader/` reads a UNI-T UT61E+ over the D-09A optical link and serves the same dashboard at `http://unit-meter.local/` (build with `pio run -t upload`; copy `src/secrets.h.example` to `src/secrets.h`). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/UT61EPLUS_D09A_HANDOVER.md](docs/UT61EPLUS_D09A_HANDOVER.md). Hosted: `?topic=multimeter-wifi-dkholin-ut61eplus-4e8a1c`.

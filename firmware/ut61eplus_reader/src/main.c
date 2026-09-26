@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "battery.h"
+#include "net.h"
 
 // Seeed Studio XIAO ESP32-C6: D6 / TX is ESP32-C6 GPIO16.
 #define D6_TX_GPIO GPIO_NUM_16
@@ -46,6 +47,52 @@ static const range_t *lookup_range(uint8_t mode, int idx) {
     return NULL;
 }
 
+// Normalized state: same contract as the Crenova dashboard (display/value/prefix/unit), plus
+// identity, battery and optional diagnostics. Absent key = unsupported, false = supported/inactive.
+static const char *function_name(uint8_t m) {
+    switch (m) {
+    case 0x00: return "AC VOLTAGE"; case 0x01: return "AC mV"; case 0x02: return "DC VOLTAGE";
+    case 0x03: return "DC mV"; case 0x04: return "FREQUENCY"; case 0x05: return "DUTY CYCLE";
+    case 0x06: return "RESISTANCE"; case 0x07: return "CONTINUITY"; case 0x08: return "DIODE";
+    case 0x09: return "CAPACITANCE"; case 0x0A: case 0x0B: return "TEMPERATURE";
+    case 0x0C: return "DC \xC2\xB5" "A"; case 0x0D: return "AC \xC2\xB5" "A"; case 0x0E: return "DC mA";
+    case 0x0F: return "AC mA"; case 0x10: return "DC CURRENT"; case 0x11: return "AC CURRENT";
+    case 0x19: return "AC+DC VOLTAGE";
+    default: return NULL;
+    }
+}
+static void publish_state(const uint8_t *f, const char *disp, const char *num, bool ol, bool numeric,
+                          double v, const range_t *rg) {
+    uint8_t f1 = f[14] & 0x0F, f2 = f[15] & 0x0F, f3 = f[16] & 0x0F;
+    char prefix[4] = "", unit[8] = "";
+    if (rg) { // range unit like "k\xCE\xA9": leading k/M is the SI prefix, remainder the base unit
+        const char *u = rg->unit;
+        if (*u == 'k' || *u == 'M' || *u == 'm') { prefix[0] = *u; u++; }
+        strlcpy(unit, u, sizeof(unit));
+    }
+    bool volt = f[3] == 0x00 || f[3] == 0x02 || f[3] == 0x19;
+    char j[640]; int n = 0;
+    n += snprintf(j + n, sizeof(j) - n, "{\"manufacturer\":\"UNI-T\",\"model\":\"UT61E+\",\"display\":");
+    if (ol) n += snprintf(j + n, sizeof(j) - n, "\"OL\"");
+    else if (num[0]) n += snprintf(j + n, sizeof(j) - n, "\"%s\"", num);
+    else n += snprintf(j + n, sizeof(j) - n, "null");
+    if (numeric) n += snprintf(j + n, sizeof(j) - n, ",\"value\":%.6g,\"negative\":%s", v, num[0] == '-' ? "true" : "false");
+    else n += snprintf(j + n, sizeof(j) - n, ",\"value\":null,\"negative\":false");
+    n += snprintf(j + n, sizeof(j) - n, ",\"unit\":%s%s%s,\"prefix\":%s%s%s", unit[0] ? "\"" : "", unit[0] ? unit : "null", unit[0] ? "\"" : "",
+                  prefix[0] ? "\"" : "", prefix[0] ? prefix : "null", prefix[0] ? "\"" : "");
+    const char *fn = function_name(f[3]);
+    n += snprintf(j + n, sizeof(j) - n, ",\"mode\":\"%s\",\"function\":%s%s%s,\"mode_raw\":%d,\"range_idx\":%d,\"ol\":%s",
+                  mode_name(f[3]), fn ? "\"" : "", fn ? fn : "null", fn ? "\"" : "", f[3], f[4] & 0x0F, ol ? "true" : "false");
+    if (volt) n += snprintf(j + n, sizeof(j) - n, ",\"ac\":%s,\"dc\":%s", f[3] == 0x02 ? "false" : "true", f[3] == 0x00 ? "false" : "true");
+    n += snprintf(j + n, sizeof(j) - n, ",\"auto\":%s,\"hold\":%s,\"max\":%s,\"min\":%s,\"rel\":%s,\"hv\":%s,\"low_bat\":%s",
+                  !((f2 >> 2) & 1) ? "true" : "false", (f1 >> 1) & 1 ? "true" : "false", (f1 >> 3) & 1 ? "true" : "false",
+                  (f1 >> 2) & 1 ? "true" : "false", f1 & 1 ? "true" : "false", f2 & 1 ? "true" : "false", (f2 >> 1) & 1 ? "true" : "false");
+    if (battery_mv() > 0) n += snprintf(j + n, sizeof(j) - n, ",\"battery_mv\":%d,\"battery_level\":%d", battery_mv(), battery_level());
+    (void)f3; (void)disp;
+    snprintf(j + n, sizeof(j) - n, "}");
+    net_publish(j);
+}
+
 static void parse_frame(const uint8_t *f, int64_t t_us) {
     char raw[19 * 3 + 1];
     for (int i = 0; i < 19; ++i) sprintf(raw + i * 3, "%02X ", f[i]);
@@ -79,10 +126,12 @@ static void parse_frame(const uint8_t *f, int64_t t_us) {
              f[12] * 10 + f[13], f1 & 1, (f1 >> 1) & 1, (f1 >> 2) & 1, (f1 >> 3) & 1,
              f2 & 1, (f2 >> 1) & 1, (f2 >> 2) & 1, (f2 >> 3) & 1, (f3 >> 3) & 1,
              !((f2 >> 2) & 1));
+    if (ok) publish_state(f, disp, num, ol, numeric, v, rg);
 }
 
 void app_main(void) {
     battery_init();
+    net_start();
     const uart_config_t config = {
         .baud_rate = 9600,
         .data_bits = UART_DATA_8_BITS,

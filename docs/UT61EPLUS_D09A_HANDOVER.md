@@ -1,5 +1,12 @@
 # UNI-T UT61E+ / D-09A / XIAO ESP32-C6 handover
 
+> **Current state (supersedes the RX/current-state sections below, which are stale).**
+> Optical UART works end to end: D6/GPIO16 = TX, D7/GPIO17 = RX (D-09A R6 -> 10k -> D7, D7 -> 20k -> GND), 9600 8N1, common GND,
+> CH9329 side of R8 lifted, D6 -> Q4/R8 optical-driver side. Poll `AB CD 03 5E 01 D9` -> 19-byte reply, checksum valid on all frames.
+> Firmware: `firmware/ut61eplus_reader/` (ESP-IDF via PlatformIO). Battery: BAT+ -> 200k -> D2/GPIO2 -> 200k -> GND, read with calibrated ADC
+> (x2, 64-sample average, coarse 0-5 level with hysteresis). Dashboard: `http://unit-meter.local/`, `/ws`, ntfy topic `multimeter-wifi-dkholin-ut61eplus-4e8a1c`.
+> Only DCV/RES range tables are wired to units so far; other modes show the display text without a unit.
+
 ## 1. Goal
 
 Reuse the proven Crenova Wi-Fi/dashboard architecture for a UNI-T UT61E+.
