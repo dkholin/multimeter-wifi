@@ -41,3 +41,5 @@ This project passively observes LCD signals. Develop and validate on a low-volta
 ## UNI-T UT61E+ variant
 
 `firmware/ut61eplus_reader/` reads a UNI-T UT61E+ over the D-09A optical link and serves the same dashboard at `http://unit-meter.local/` (build with `pio run -t upload`; copy `src/secrets.h.example` to `src/secrets.h`). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/UT61EPLUS_D09A_HANDOVER.md](docs/UT61EPLUS_D09A_HANDOVER.md). Hosted: `?topic=multimeter-wifi-dkholin-ut61eplus-4e8a1c`.
+
+**Public relay (experimental, best-effort):** the firmware also POSTs the latest state to an ntfy.sh topic for the hosted GitHub Pages dashboard. It runs in a separate background task, may be rate-limited (ntfy's free daily quota is shared per IP) and fails silently without affecting the local dashboard, which is the supported path.
