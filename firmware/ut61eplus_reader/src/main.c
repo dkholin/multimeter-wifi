@@ -8,6 +8,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "battery.h"
 
 // Seeed Studio XIAO ESP32-C6: D6 / TX is ESP32-C6 GPIO16.
 #define D6_TX_GPIO GPIO_NUM_16
@@ -81,6 +82,7 @@ static void parse_frame(const uint8_t *f, int64_t t_us) {
 }
 
 void app_main(void) {
+    battery_init();
     const uart_config_t config = {
         .baud_rate = 9600,
         .data_bits = UART_DATA_8_BITS,
