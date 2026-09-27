@@ -161,13 +161,19 @@ static bool parse_frame(const uint8_t *f, int64_t t_us) {
 // poll cycles; beyond that we actively announce meter_offline rather than leave the last
 // valid reading cached and served to new/reconnecting clients as if it were still live.
 #define METER_OFFLINE_AFTER_US (3 * 1000000LL)
-static bool meter_online = false;
+// Explicit presence, not a bool: UNKNOWN covers the boot window before the first
+// offline-timeout check, so a meter that's absent from power-on still gets an
+// explicit meter_offline push instead of leaving clients on the initial "starting" state.
+typedef enum { PRESENCE_UNKNOWN, PRESENCE_ONLINE, PRESENCE_OFFLINE } presence_t;
+static presence_t presence = PRESENCE_UNKNOWN;
 
 static void publish_offline(void) {
-    char j[96];
-    if (battery_mv() > 0) snprintf(j, sizeof(j), "{\"status\":\"meter_offline\",\"battery_mv\":%d,\"battery_level\":%d}",
-                                    battery_mv(), battery_level());
-    else snprintf(j, sizeof(j), "{\"status\":\"meter_offline\"}");
+    char j[128];
+    if (battery_mv() > 0)
+        snprintf(j, sizeof(j), "{\"status\":\"meter_offline\",\"manufacturer\":\"UNI-T\",\"model\":\"UT61E+\",\"battery_mv\":%d,\"battery_level\":%d}",
+                 battery_mv(), battery_level());
+    else
+        snprintf(j, sizeof(j), "{\"status\":\"meter_offline\",\"manufacturer\":\"UNI-T\",\"model\":\"UT61E+\"}");
     net_publish(j);
 }
 
@@ -201,13 +207,13 @@ void app_main(void) {
             if (have == 3 && b != 0x10) { ESP_LOGW(TAG, "unexpected length 0x%02X", b); have = 0; }
             if (have == 19) {
                 int64_t t_us = esp_timer_get_time();
-                if (parse_frame(buf, t_us)) { last_valid_us = t_us; meter_online = true; }
+                if (parse_frame(buf, t_us)) { last_valid_us = t_us; presence = PRESENCE_ONLINE; }
                 have = 0;
             }
         }
         int64_t now_us = esp_timer_get_time();
-        if (meter_online && now_us - last_valid_us > METER_OFFLINE_AFTER_US) {
-            meter_online = false;
+        if (presence != PRESENCE_OFFLINE && now_us - last_valid_us > METER_OFFLINE_AFTER_US) {
+            presence = PRESENCE_OFFLINE;
             ESP_LOGW(TAG, "meter offline: no valid frame for %lld us", (long long)(now_us - last_valid_us));
             publish_offline();
         }
