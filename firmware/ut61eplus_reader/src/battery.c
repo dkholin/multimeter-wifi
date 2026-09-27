@@ -9,6 +9,8 @@
 // BAT+ -> 200k -> D2/GPIO2 -> 200k -> GND: battery voltage is 2x the pin voltage.
 #define BAT_ADC_CH ADC_CHANNEL_2
 #define SAMPLES 64
+// 3883 mV (independent meter) / 3790 mV (uncalibrated firmware) = 1.0245
+#define BAT_CAL_PPM 1024500LL
 static const char *TAG = "BAT";
 static volatile int g_mv, g_level;
 // Level n is entered above ENTER[n-1] and left below ENTER[n-1] - HYST.
@@ -33,7 +35,7 @@ static void battery_task(void *arg) {
             vTaskDelay(1);
         }
         if (n) {
-            int bat = (int)(2 * sum / n);
+            int bat = (int)(2 * sum / n * BAT_CAL_PPM / 1000000); // 2x divider, then meter-calibrated gain
             g_mv = g_mv ? (g_mv * 3 + bat) / 4 : bat;
             int lvl = g_level;
             while (lvl < 5 && g_mv >= ENTER[lvl]) lvl++;
