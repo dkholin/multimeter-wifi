@@ -31,20 +31,43 @@ static const char *mode_name(uint8_t m) {
 
 // Range tables from antoinecellerier/dmm-tools, protocol/ut61eplus/tables/ut61e_plus.rs.
 // The display number is already expressed in the range's unit; scale converts to the base unit.
-typedef struct { const char *label; const char *unit; double scale; const char *base; } range_t;
-static const range_t DCV_RANGES[] = {
-    {"2.2V", "V", 1, "V"}, {"22V", "V", 1, "V"}, {"220V", "V", 1, "V"}, {"1000V", "V", 1, "V"}};
-static const range_t RES_RANGES[] = {
-    {"220\xCE\xA9", "\xCE\xA9", 1, "\xCE\xA9"}, {"2.2k\xCE\xA9", "k\xCE\xA9", 1e3, "\xCE\xA9"},
-    {"22k\xCE\xA9", "k\xCE\xA9", 1e3, "\xCE\xA9"}, {"220k\xCE\xA9", "k\xCE\xA9", 1e3, "\xCE\xA9"},
-    {"2.2M\xCE\xA9", "M\xCE\xA9", 1e6, "\xCE\xA9"}, {"22M\xCE\xA9", "M\xCE\xA9", 1e6, "\xCE\xA9"},
-    {"220M\xCE\xA9", "M\xCE\xA9", 1e6, "\xCE\xA9"}};
+typedef struct { const char *label; const char *unit; } range_t;
+#define R(l, u) {l, u}
+#define OHM "\xCE\xA9"
+#define UA "\xC2\xB5"
+static const range_t V4[] = {R("2.2V","V"), R("22V","V"), R("220V","V"), R("1000V","V")};
+static const range_t MV1[] = {R("220mV","mV")};
+static const range_t RES_R[] = {R("220" OHM,OHM), R("2.2k" OHM,"k" OHM), R("22k" OHM,"k" OHM), R("220k" OHM,"k" OHM),
+    R("2.2M" OHM,"M" OHM), R("22M" OHM,"M" OHM), R("220M" OHM,"M" OHM)};
+static const range_t CAP_R[] = {R("22nF","nF"), R("220nF","nF"), R("2.2" UA "F", UA "F"), R("22" UA "F", UA "F"),
+    R("220" UA "F", UA "F"), R("2.2mF","mF"), R("22mF","mF"), R("220mF","mF")};
+static const range_t FREQ_R[] = {R("22Hz","Hz"), R("220Hz","Hz"), R("2.2kHz","kHz"), R("22kHz","kHz"), R("220kHz","kHz"),
+    R("2.2MHz","MHz"), R("22MHz","MHz"), R("220MHz","MHz")};
+static const range_t DUTY_R[] = {R("Duty","%")};
+static const range_t DIODE_R[] = {R("Diode","V")};
+static const range_t CONT_R[] = {R("Cont",OHM)};
+static const range_t UA2[] = {R("220" UA "A", UA "A"), R("2200" UA "A", UA "A")};
+static const range_t MA2[] = {R("22mA","mA"), R("220mA","mA")};
+static const range_t A2[] = {R("20A","A"), R("20A","A")};
+#define N(a) (int)(sizeof(a) / sizeof((a)[0]))
 
 static const range_t *lookup_range(uint8_t mode, int idx) {
-    // ACDC_V (0x19) shares the DC V table in the reference implementation.
-    if (mode == 0x02 || mode == 0x19) return idx < 4 ? &DCV_RANGES[idx] : NULL;
-    if (mode == 0x06) return idx < 7 ? &RES_RANGES[idx] : NULL;
-    return NULL;
+    const range_t *t = NULL; int n = 0;
+    switch (mode) { // ACDC_V (0x19) and LPF_V (0x18) share the DC V table in the reference
+    case 0x00: case 0x02: case 0x18: case 0x19: t = V4; n = N(V4); break;
+    case 0x01: case 0x03: t = MV1; n = N(MV1); break;
+    case 0x04: t = FREQ_R; n = N(FREQ_R); break;
+    case 0x05: t = DUTY_R; n = N(DUTY_R); break;
+    case 0x06: t = RES_R; n = N(RES_R); break;
+    case 0x07: t = CONT_R; n = N(CONT_R); break;
+    case 0x08: t = DIODE_R; n = N(DIODE_R); break;
+    case 0x09: t = CAP_R; n = N(CAP_R); break;
+    case 0x0C: case 0x0D: t = UA2; n = N(UA2); break;
+    case 0x0E: case 0x0F: t = MA2; n = N(MA2); break;
+    case 0x10: case 0x11: t = A2; n = N(A2); break;
+    default: return NULL;
+    }
+    return idx < n ? &t[idx] : NULL;
 }
 
 // Normalized state: same contract as the Crenova dashboard (display/value/prefix/unit), plus
@@ -52,7 +75,7 @@ static const range_t *lookup_range(uint8_t mode, int idx) {
 static const char *function_name(uint8_t m) {
     switch (m) {
     case 0x00: return "AC VOLTAGE"; case 0x01: return "AC mV"; case 0x02: return "DC VOLTAGE";
-    case 0x03: return "DC mV"; case 0x04: return "FREQUENCY"; case 0x05: return "DUTY CYCLE";
+    case 0x03: return "DC mV"; case 0x04: return "FREQUENCY"; case 0x05: return "DUTY_R CYCLE";
     case 0x06: return "RESISTANCE"; case 0x07: return "CONTINUITY"; case 0x08: return "DIODE";
     case 0x09: return "CAPACITANCE"; case 0x0A: case 0x0B: return "TEMPERATURE";
     case 0x0C: return "DC \xC2\xB5" "A"; case 0x0D: return "AC \xC2\xB5" "A"; case 0x0E: return "DC mA";
@@ -67,10 +90,14 @@ static void publish_state(const uint8_t *f, const char *disp, const char *num, b
     char prefix[4] = "", unit[8] = "";
     if (rg) { // range unit like "k\xCE\xA9": leading k/M is the SI prefix, remainder the base unit
         const char *u = rg->unit;
-        if (*u == 'k' || *u == 'M' || *u == 'm') { prefix[0] = *u; u++; }
+        if (!strncmp(u, UA, 2)) { strcpy(prefix, UA); u += 2; }
+        else if ((*u == 'k' || *u == 'M' || *u == 'm' || *u == 'n') && u[1]) { prefix[0] = *u; u++; }
         strlcpy(unit, u, sizeof(unit));
     }
-    bool volt = f[3] == 0x00 || f[3] == 0x02 || f[3] == 0x19;
+    uint8_t m = f[3];
+    bool acm = m == 0x00 || m == 0x01 || m == 0x0D || m == 0x0F || m == 0x11 || m == 0x19;
+    bool dcm = m == 0x02 || m == 0x03 || m == 0x0C || m == 0x0E || m == 0x10 || m == 0x19;
+    bool volt = acm || dcm;
     char j[640]; int n = 0;
     n += snprintf(j + n, sizeof(j) - n, "{\"manufacturer\":\"UNI-T\",\"model\":\"UT61E+\",\"display\":");
     if (ol) n += snprintf(j + n, sizeof(j) - n, "\"OL\"");
@@ -83,7 +110,7 @@ static void publish_state(const uint8_t *f, const char *disp, const char *num, b
     const char *fn = function_name(f[3]);
     n += snprintf(j + n, sizeof(j) - n, ",\"mode\":\"%s\",\"function\":%s%s%s,\"mode_raw\":%d,\"range_idx\":%d,\"ol\":%s",
                   mode_name(f[3]), fn ? "\"" : "", fn ? fn : "null", fn ? "\"" : "", f[3], f[4] & 0x0F, ol ? "true" : "false");
-    if (volt) n += snprintf(j + n, sizeof(j) - n, ",\"ac\":%s,\"dc\":%s", f[3] == 0x02 ? "false" : "true", f[3] == 0x00 ? "false" : "true");
+    if (volt) n += snprintf(j + n, sizeof(j) - n, ",\"ac\":%s,\"dc\":%s", acm ? "true" : "false", dcm ? "true" : "false");
     n += snprintf(j + n, sizeof(j) - n, ",\"auto\":%s,\"hold\":%s,\"max\":%s,\"min\":%s,\"rel\":%s,\"hv\":%s,\"low_bat\":%s",
                   !((f2 >> 2) & 1) ? "true" : "false", (f1 >> 1) & 1 ? "true" : "false", (f1 >> 3) & 1 ? "true" : "false",
                   (f1 >> 2) & 1 ? "true" : "false", f1 & 1 ? "true" : "false", f2 & 1 ? "true" : "false", (f2 >> 1) & 1 ? "true" : "false");
@@ -120,7 +147,7 @@ static void parse_frame(const uint8_t *f, int64_t t_us) {
     const range_t *rg = lookup_range(f[3], f[4] & 0x0F);
     if (!rg) ESP_LOGI(TAG, "  eng=n/a (no documented range table for mode 0x%02X idx %d)", f[3], f[4] & 0x0F);
     else if (ol) ESP_LOGI(TAG, "  eng=OL range=%s", rg->label);
-    else if (numeric) ESP_LOGI(TAG, "  eng=%s %s range=%s base=%.6g %s", num, rg->unit, rg->label, v * rg->scale, rg->base);
+    else if (numeric) ESP_LOGI(TAG, "  eng=%s %s range=%s", num, rg->unit, rg->label);
     else ESP_LOGI(TAG, "  eng=n/a (unparsed display)");
     ESP_LOGI(TAG, "  bar=%d REL=%d HOLD=%d MIN=%d MAX=%d HV=%d LOWBAT=%d MANUAL=%d APO=%d AC=%d AUTO=%d",
              f[12] * 10 + f[13], f1 & 1, (f1 >> 1) & 1, (f1 >> 2) & 1, (f1 >> 3) & 1,
