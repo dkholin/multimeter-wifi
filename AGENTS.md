@@ -17,9 +17,17 @@ Agents may read, edit, build, test, commit, and push to `main` autonomously for 
 
 Do not ask for approval for routine development commands.
 
-## Validating `meter.local`
+## Browser validation (MANDATORY route: localhost proxy)
 
-Browser site permissions (e.g. "Allow Claude to execute JavaScript on meter.local?") are an app-level setting, not controlled by `.claude/settings.json`, so they prompt every time. Avoid that surface: validate with `curl`, direct WebSocket inspection (Python), serial output, and HTTP endpoints. Use browser JavaScript on `meter.local` only when no equivalent non-browser path exists.
+Claude browser JavaScript/DOM actions on `unit-meter.local` or `192.168.1.x` trigger a per-action site-permission prompt that no repo setting can suppress. So:
+
+- NEVER run Claude browser actions (clicks, screenshots, DOM inspection, JavaScript) directly against `unit-meter.local` or `192.168.1.x`.
+- When browser/UI validation is needed, start the proxy yourself (no permission needed; idempotent, reuses a running one):
+  `python3 tools/meter_proxy.py start`
+- Do all browser automation at `http://localhost:8765/` (proxies HTTP and `/ws` to the meter).
+- Confirm it works with `python3 tools/meter_proxy.py check` (HTTP + WebSocket PASS/FAIL). Stop with `... stop`.
+- Keep using `curl`, direct WebSocket clients and serial tools straight against `unit-meter.local`.
+- localStorage is per-origin: saved readings made on `localhost:8765` are separate from those on the meter's own origins.
 
 ## Ask first
 
