@@ -1,4 +1,5 @@
 #include "battery.h"
+#include "boot_diag.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
@@ -27,13 +28,17 @@ static const int ENTER[5] = {3300, 3550, 3690, 3840, 4050};
 static void battery_task(void *arg) {
     adc_oneshot_unit_handle_t adc;
     adc_oneshot_unit_init_cfg_t ucfg = {.unit_id = ADC_UNIT_1};
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&ucfg, &adc));
+    esp_err_t r = adc_oneshot_new_unit(&ucfg, &adc);
+    if (r != ESP_OK) { boot_diag_event(DIAG_BATTERY_READY, r); return; }
     adc_oneshot_chan_cfg_t ccfg = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc, BAT_ADC_CH, &ccfg));
+    r = adc_oneshot_config_channel(adc, BAT_ADC_CH, &ccfg);
+    if (r != ESP_OK) { boot_diag_event(DIAG_BATTERY_READY, r); return; }
     adc_cali_handle_t cali;
     adc_cali_curve_fitting_config_t kcfg = {.unit_id = ADC_UNIT_1, .chan = BAT_ADC_CH,
         .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_DEFAULT};
-    ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&kcfg, &cali));
+    r = adc_cali_create_scheme_curve_fitting(&kcfg, &cali);
+    boot_diag_event(DIAG_BATTERY_READY, r);
+    if (r != ESP_OK) return;
     for (;;) {
         int64_t sum = 0; int n = 0;
         for (int i = 0; i < SAMPLES; ++i) {
@@ -48,6 +53,7 @@ static void battery_task(void *arg) {
             while (lvl < 5 && g_mv >= ENTER[lvl]) lvl++;
             while (lvl > 0 && g_mv < ENTER[lvl - 1] - HYST) lvl--;
             g_level = lvl;
+            boot_diag_event(DIAG_BATTERY_MV, g_mv);
             ESP_LOGI(TAG, "pin_avg=%d mV battery_mv=%d level=%d", (int)(sum / n), g_mv, g_level);
         }
         vTaskDelay(pdMS_TO_TICKS(2000));

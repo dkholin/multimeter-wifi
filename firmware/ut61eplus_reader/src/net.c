@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "net.h"
+#include "boot_diag.h"
 #include "secrets.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
@@ -31,11 +32,18 @@ static char relay_pending[MAX_JSON];
 static uint32_t relay_version;
 static SemaphoreHandle_t lock;
 static volatile bool got_ip;
+static char diag_body[4096];
 
 static esp_err_t root_get(httpd_req_t *r) {
     httpd_resp_set_type(r, "text/html");
     httpd_resp_set_hdr(r, "Cache-Control", "no-store, max-age=0");
     return httpd_resp_send(r, (const char *)page_html, page_html_len);
+}
+static esp_err_t diag_get(httpd_req_t *r) {
+    boot_diag_render(diag_body, sizeof(diag_body));
+    httpd_resp_set_type(r, "text/plain; charset=utf-8");
+    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+    return httpd_resp_sendstr(r, diag_body);
 }
 static esp_err_t ws_handler(httpd_req_t *r) {
     if (r->method == HTTP_GET) {
@@ -56,16 +64,20 @@ static void on_close(httpd_handle_t s, int fd) {
     for (int i = 0; i < MAX_WS; i++) if (ws_fds[i] == fd) ws_fds[i] = -1;
     close(fd);
 }
-static void start_web(void) {
+static esp_err_t start_web(void) {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.max_open_sockets = 13; // browsers preconnect idle sockets; leave room for WS clients
     cfg.lru_purge_enable = true;
     cfg.close_fn = on_close;
-    if (httpd_start(&server, &cfg) != ESP_OK) return;
+    esp_err_t result = httpd_start(&server, &cfg);
+    if (result != ESP_OK) return result;
     httpd_uri_t a = {.uri = "/", .method = HTTP_GET, .handler = root_get};
     httpd_uri_t b = {.uri = "/ws", .method = HTTP_GET, .handler = ws_handler, .is_websocket = true};
+    httpd_uri_t d = {.uri = "/diag", .method = HTTP_GET, .handler = diag_get};
     httpd_register_uri_handler(server, &a);
     httpd_register_uri_handler(server, &b);
+    httpd_register_uri_handler(server, &d);
+    return ESP_OK;
 }
 
 static void ws_send_work(void *arg) {
@@ -119,10 +131,17 @@ static void relay_task(void *arg) {
 
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) esp_wifi_connect();
-    else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) { got_ip = false; esp_wifi_connect(); }
+    else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_CONNECTED) boot_diag_event(DIAG_WIFI_CONNECTED, 0);
+    else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+        got_ip = false;
+        wifi_event_sta_disconnected_t *e = data;
+        boot_diag_event(DIAG_WIFI_DISCONNECTED, e ? e->reason : -1);
+        esp_wifi_connect();
+    }
     else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *e = data;
         got_ip = true;
+        boot_diag_event(DIAG_GOT_IP, (int32_t)e->ip_info.ip.addr);
         ESP_LOGI(TAG, "dashboard http://" HOSTNAME ".local/  http://" IPSTR "/", IP2STR(&e->ip_info.ip));
     }
 }
@@ -135,7 +154,8 @@ void net_start(void) {
     esp_netif_t *sta = esp_netif_create_default_wifi_sta();
     esp_netif_set_hostname(sta, HOSTNAME);
     wifi_init_config_t wc = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_init(&wc);
+    r = esp_wifi_init(&wc);
+    boot_diag_event(DIAG_WIFI_INIT, r);
     esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, NULL);
     esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event, NULL);
     wifi_config_t cfg = {0};
@@ -143,10 +163,13 @@ void net_start(void) {
     strlcpy((char *)cfg.sta.password, METER_WIFI_PASSWORD, sizeof(cfg.sta.password));
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &cfg);
-    esp_wifi_start();
-    mdns_init();
+    r = esp_wifi_start();
+    boot_diag_event(DIAG_WIFI_START, r);
+    r = mdns_init();
+    boot_diag_event(DIAG_MDNS_INIT, r);
     mdns_hostname_set(HOSTNAME);
     mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
-    start_web();
+    r = start_web();
+    boot_diag_event(DIAG_HTTP_START, r);
     xTaskCreate(relay_task, "relay", 6144, NULL, 1, NULL);
 }

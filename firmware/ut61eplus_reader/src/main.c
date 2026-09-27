@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "battery.h"
+#include "boot_diag.h"
 #include "net.h"
 
 // Seeed Studio XIAO ESP32-C6: D6 / TX is ESP32-C6 GPIO16.
@@ -178,7 +179,10 @@ static void publish_offline(void) {
 }
 
 void app_main(void) {
+    boot_diag_init();
+    boot_diag_event(DIAG_APP_MAIN, 0);
     battery_init();
+    boot_diag_event(DIAG_BATTERY_TASK_START, 0);
     net_start();
     const uart_config_t config = {
         .baud_rate = 9600,
@@ -188,9 +192,12 @@ void app_main(void) {
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    uart_driver_install(METER_UART, 256, 0, 0, NULL, 0);
-    uart_param_config(METER_UART, &config);
-    uart_set_pin(METER_UART, D6_TX_GPIO, D7_RX_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    esp_err_t uart_result = uart_driver_install(METER_UART, 256, 0, 0, NULL, 0);
+    boot_diag_event(DIAG_UART_INSTALL, uart_result);
+    uart_result = uart_param_config(METER_UART, &config);
+    boot_diag_event(DIAG_UART_CONFIG, uart_result);
+    uart_result = uart_set_pin(METER_UART, D6_TX_GPIO, D7_RX_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    boot_diag_event(DIAG_UART_PINS, uart_result);
 
     uint8_t buf[19];
     int have = 0;
@@ -201,25 +208,28 @@ void app_main(void) {
     while (true) {
         uint8_t b;
         if (uart_read_bytes(METER_UART, &b, 1, pdMS_TO_TICKS(5)) == 1) {
+            boot_diag_event(DIAG_FIRST_RX, b);
             if (have == 0 && b != 0xAB) continue;
             if (have == 1 && b != 0xCD) { have = (b == 0xAB); if (have) buf[0] = b; continue; }
             buf[have++] = b;
             if (have == 3 && b != 0x10) { ESP_LOGW(TAG, "unexpected length 0x%02X", b); have = 0; }
             if (have == 19) {
                 int64_t t_us = esp_timer_get_time();
-                if (parse_frame(buf, t_us)) { last_valid_us = t_us; presence = PRESENCE_ONLINE; }
+                if (parse_frame(buf, t_us)) { boot_diag_event(DIAG_FIRST_VALID_FRAME, 0); last_valid_us = t_us; presence = PRESENCE_ONLINE; }
                 have = 0;
             }
         }
         int64_t now_us = esp_timer_get_time();
         if (presence != PRESENCE_OFFLINE && now_us - last_valid_us > METER_OFFLINE_AFTER_US) {
             presence = PRESENCE_OFFLINE;
+            boot_diag_event(DIAG_METER_OFFLINE, 0);
             ESP_LOGW(TAG, "meter offline: no valid frame for %lld us", (long long)(now_us - last_valid_us));
             publish_offline();
         }
         if (now_us >= next_poll_us) {
             have = 0;
             uart_write_bytes(METER_UART, get_measurement, sizeof(get_measurement));
+            if (!polls) boot_diag_event(DIAG_FIRST_POLL, 0);
             ESP_LOGI(TAG, "TX poll %lu", (unsigned long)++polls);
             next_poll_us += 1000000;
         }
