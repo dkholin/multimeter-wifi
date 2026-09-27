@@ -4,8 +4,10 @@
 > Optical UART works end to end: D6/GPIO16 = TX, D7/GPIO17 = RX (D-09A R6 -> 10k -> D7, D7 -> 20k -> GND), 9600 8N1, common GND,
 > CH9329 side of R8 lifted, D6 -> Q4/R8 optical-driver side. Poll `AB CD 03 5E 01 D9` -> 19-byte reply, checksum valid on all frames.
 > Firmware: `firmware/ut61eplus_reader/` (ESP-IDF via PlatformIO). Battery: BAT+ -> 200k -> D2/GPIO2 -> 200k -> GND, read with calibrated ADC
-> (x2, 64-sample average, coarse 0-5 level with hysteresis). Dashboard: `http://unit-meter.local/`, `/ws`, ntfy topic `multimeter-wifi-dkholin-ut61eplus-4e8a1c`.
+> (x2, 64-sample average, coarse 0-5 level with hysteresis, gain 0.9951 per DMM pairing 2026-09-27). Dashboard: `http://unit-meter.local/`, `/ws`, ntfy topic `multimeter-wifi-dkholin-ut61eplus-4e8a1c`.
 > Only DCV/RES range tables are wired to units so far; other modes show the display text without a unit.
+> Meter presence: `/ws` publishes `{"status":"meter_offline",...}` after ~3s without a valid checksummed frame (main.c `METER_OFFLINE_AFTER_US`); the dashboard treats it as "no longer live" separately from Wi-Fi/WS connectivity (issue #1, fixed 19fc46f).
+> Battery/charging: charger is the XIAO ESP32-C6's onboard SGM40567-4.2 (float ~4.2-4.26V, 120mA programmed via 200k IREF, CC/CV/hold/recharge per datasheet). The boost converter + D-09A draw continuously from the raw BAT pads regardless of USB state (outside the XIAO's own USB/battery power mux), so charging while the D-09A is powered settles into a rough current equilibrium rather than climbing to float voltage -- observed live: LED blinking (actively charging) while `battery_mv` sat flat at ~3990mV. See docs/BATTERY_CALIBRATION.md for the full writeup.
 
 ## 1. Goal
 

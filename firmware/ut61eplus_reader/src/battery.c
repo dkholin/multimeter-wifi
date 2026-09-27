@@ -9,12 +9,19 @@
 // BAT+ -> 200k -> D2/GPIO2 -> 200k -> GND: battery voltage is 2x the pin voltage.
 #define BAT_ADC_CH ADC_CHANNEL_2
 #define SAMPLES 64
-// 3883 mV (independent meter) / 3790 mV (uncalibrated firmware) = 1.0245
-#define BAT_CAL_PPM 1024500LL
+// Paired calibration (same moment, same load: battery connected, USB unplugged, system
+// running normally): DMM 4095 mV at boost VIN+/VIN- vs firmware battery_mv 4216 mV
+// (raw 2x-pin average 4115 mV before the old 1.0245 gain). 4095 / 4115 = 0.99510.
+#define BAT_CAL_PPM 995100LL
 static const char *TAG = "BAT";
 static volatile int g_mv, g_level;
 // Level n is entered above ENTER[n-1] and left below ENTER[n-1] - HYST.
-static const int ENTER[5] = {3400, 3650, 3800, 3950, 4100};
+// Lower 4 thresholds rescaled by the calibration change above (x0.9713) to keep their
+// original real-world meaning. Top threshold set from paired evidence instead of the
+// rescale: a battery charged to 4.250V (rested) settles to ~4095mV while running this
+// system (boost+D-09A load sags it via ESR, not depletion) -- 4100 never reached in
+// practice, so a fully-charged battery could never show the top icon.
+static const int ENTER[5] = {3300, 3550, 3690, 3840, 4050};
 #define HYST 40
 
 static void battery_task(void *arg) {
