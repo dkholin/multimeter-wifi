@@ -120,7 +120,7 @@ static void publish_state(const uint8_t *f, const char *disp, const char *num, b
     net_publish(j);
 }
 
-static void parse_frame(const uint8_t *f, int64_t t_us) {
+static bool parse_frame(const uint8_t *f, int64_t t_us) {
     char raw[19 * 3 + 1];
     for (int i = 0; i < 19; ++i) sprintf(raw + i * 3, "%02X ", f[i]);
     uint16_t sum = 0;
@@ -154,6 +154,21 @@ static void parse_frame(const uint8_t *f, int64_t t_us) {
              f2 & 1, (f2 >> 1) & 1, (f2 >> 2) & 1, (f2 >> 3) & 1, (f3 >> 3) & 1,
              !((f2 >> 2) & 1));
     if (ok) publish_state(f, disp, num, ol, numeric, v, rg);
+    return ok;
+}
+
+// Meter presence: distinct from Wi-Fi/WS connectivity. A frame is only "fresh" for a few
+// poll cycles; beyond that we actively announce meter_offline rather than leave the last
+// valid reading cached and served to new/reconnecting clients as if it were still live.
+#define METER_OFFLINE_AFTER_US (3 * 1000000LL)
+static bool meter_online = false;
+
+static void publish_offline(void) {
+    char j[96];
+    if (battery_mv() > 0) snprintf(j, sizeof(j), "{\"status\":\"meter_offline\",\"battery_mv\":%d,\"battery_level\":%d}",
+                                    battery_mv(), battery_level());
+    else snprintf(j, sizeof(j), "{\"status\":\"meter_offline\"}");
+    net_publish(j);
 }
 
 void app_main(void) {
@@ -175,6 +190,7 @@ void app_main(void) {
     int have = 0;
     uint32_t polls = 0;
     int64_t next_poll_us = esp_timer_get_time();
+    int64_t last_valid_us = next_poll_us;
 
     while (true) {
         uint8_t b;
@@ -183,9 +199,18 @@ void app_main(void) {
             if (have == 1 && b != 0xCD) { have = (b == 0xAB); if (have) buf[0] = b; continue; }
             buf[have++] = b;
             if (have == 3 && b != 0x10) { ESP_LOGW(TAG, "unexpected length 0x%02X", b); have = 0; }
-            if (have == 19) { parse_frame(buf, esp_timer_get_time()); have = 0; }
+            if (have == 19) {
+                int64_t t_us = esp_timer_get_time();
+                if (parse_frame(buf, t_us)) { last_valid_us = t_us; meter_online = true; }
+                have = 0;
+            }
         }
         int64_t now_us = esp_timer_get_time();
+        if (meter_online && now_us - last_valid_us > METER_OFFLINE_AFTER_US) {
+            meter_online = false;
+            ESP_LOGW(TAG, "meter offline: no valid frame for %lld us", (long long)(now_us - last_valid_us));
+            publish_offline();
+        }
         if (now_us >= next_poll_us) {
             have = 0;
             uart_write_bytes(METER_UART, get_measurement, sizeof(get_measurement));

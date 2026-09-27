@@ -38,16 +38,21 @@ function render(u){let now=Date.now(),lo=now-W*1000,w=h.filter(p=>p[0]>=lo),vs=w
 document.querySelectorAll('[data-w]').forEach(e=>e.onclick=()=>{W=+e.dataset.w;document.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('on',x===e));render(key.split('|')[0])});
 /* Meter-specific tags: null/absent = unsupported (hidden), false = supported but inactive, true = active. */
 const TAGS={auto:'auto',hold:'hold',max:'max',min:'min',rel:'rel',hv:'hv',lowbat:'low_bat'};
+function battery(s){let b=$('bat');if(s.battery_level==null)b.classList.remove('show');else{let l=Math.max(0,Math.min(5,s.battery_level));b.classList.add('show');b.classList.toggle('low',l<=1&&l>0);b.classList.toggle('empty',l===0);b.querySelectorAll('.seg').forEach((r,i)=>r.classList.toggle('off',i>=l));b.dataset.mv=s.battery_mv??'';b.setAttribute('aria-label','battery level '+l+' of 5')}}
 function show(s){last=Date.now();$('dot').className='dot on';$('status').textContent='LIVE';let n=$('number');n.className='number'+(s.ol?' ol':'');n.textContent=s.display??(s.ol?'OL':'—');
  let u=$('unit');if(s.unit){u.className='unit';u.textContent=(s.prefix||'')+s.unit}else{u.className='unit q';u.textContent=s.prefix?s.prefix+' ?':''}
  for(let[id,k]of Object.entries(TAGS)){let e=$(id);e.hidden=s[k]==null;e.classList.toggle('on',s[k]===true)}
  let id=s.manufacturer&&s.model?s.manufacturer+' · '+s.model:'CRENOVA · MS8233D'/* older Crenova firmware sends no identity */;$('ident').textContent=id.toUpperCase();document.title=id;
- let b=$('bat');if(s.battery_level==null)b.classList.remove('show');else{let l=Math.max(0,Math.min(5,s.battery_level));b.classList.add('show');b.classList.toggle('low',l<=1&&l>0);b.classList.toggle('empty',l===0);b.querySelectorAll('.seg').forEach((r,i)=>r.classList.toggle('off',i>=l));b.dataset.mv=s.battery_mv??'';b.setAttribute('aria-label','battery level '+l+' of 5')}
+ battery(s);
  let N={'Ω':'RESISTANCE',F:'CAPACITANCE',Hz:'FREQUENCY','%':'DUTY CYCLE'},f=$('fn');f.textContent=s.function||(s.diode?'DIODE':s.continuity?'CONTINUITY':s.unit==='V'?(s.ac?'AC ':s.dc?'DC ':'')+'VOLTAGE':N[s.unit]||'—');f.classList.toggle('on',f.textContent!=='—');cur=s;$('sv').disabled=false;graph(s)}
 function live(){$('dot').className='dot on';$('status').textContent='LIVE'}
 function offline(t){$('dot').className='dot';$('status').textContent=t;$('number').classList.add('stale')}
+/* meter_offline: an explicit, freshly-pushed status from the firmware (not just a lack of
+   messages) — react immediately rather than waiting on the client-side stale() timeout, and
+   drop cur so RECORD/graph/SAVE stop using the last real reading as if it were still live. */
+function meterOffline(s){offline('METER OFFLINE');cur=null;$('sv').disabled=true;battery(s)}
 function go(){let w=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');
- w.onopen=live;w.onmessage=e=>{let s=JSON.parse(e.data);if(s.status)return;show(s)};
+ w.onopen=live;w.onmessage=e=>{let s=JSON.parse(e.data);if(s.status==='meter_offline')return meterOffline(s);if(s.status)return;show(s)};
  w.onclose=()=>{offline('RECONNECTING');setTimeout(go,1000)}}
 function relay(){let base='https://ntfy.sh/'+encodeURIComponent(relayTopic),env=e=>{if(e&&e.event==='message'&&e.message)try{show(JSON.parse(e.message))}catch(x){}};
  fetch(base+'/json?poll=1&since=latest',{cache:'no-store'}).then(r=>r.text()).then(t=>t.trim().split('\n').filter(Boolean).forEach(x=>{try{env(JSON.parse(x))}catch{}})).catch(()=>{}).finally(()=>{let es=new EventSource(base+'/sse?since=latest');es.onopen=live;es.onmessage=e=>{try{env(JSON.parse(e.data))}catch{}};es.onerror=()=>offline('RECONNECTING')})}
